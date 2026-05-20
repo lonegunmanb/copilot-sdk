@@ -269,7 +269,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
                 Command = "node",
                 Args = [Path.Combine(testHarnessDir, "test-mcp-server.mjs")],
                 Env = new Dictionary<string, string> { ["TEST_SECRET"] = "hunter2" },
-                Cwd = testHarnessDir,
+                WorkingDirectory = testHarnessDir,
                 Tools = ["*"]
             }
         };
@@ -330,7 +330,7 @@ public class SessionMcpAndAgentConfigE2ETests(E2ETestFixture fixture, ITestOutpu
                     "--config",
                     configPath
                 ],
-                Cwd = testHarnessDir,
+                WorkingDirectory = testHarnessDir,
                 Tools = ["*"]
             }
         };

@@ -1057,7 +1057,7 @@ public sealed class InstalledPlugin
 
     /// <summary>Source for direct repo installs (when marketplace is empty).</summary>
     [JsonPropertyName("source")]
-    public object? Source { get; set; }
+    public JsonElement? Source { get; set; }
 
     /// <summary>Version installed (if available).</summary>
     [JsonPropertyName("version")]
@@ -1318,7 +1318,7 @@ internal sealed class SendRequest
 
     /// <summary>Optional provenance tag copied to the resulting user.message event. Supported values are `system`, `command-*`, and `schedule-*`.</summary>
     [JsonPropertyName("source")]
-    public object? Source { get; set; }
+    public JsonElement? Source { get; set; }
 
     /// <summary>W3C Trace Context traceparent header for distributed tracing of this agent turn.</summary>
     [JsonPropertyName("traceparent")]
@@ -2527,7 +2527,7 @@ public sealed class AgentInfo
 
     /// <summary>MCP server configurations attached to this agent, keyed by server name. Server config shape mirrors the MCP `mcpServers` schema.</summary>
     [JsonPropertyName("mcpServers")]
-    public IDictionary<string, object>? McpServers { get; set; }
+    public IDictionary<string, JsonElement>? McpServers { get; set; }
 
     /// <summary>Preferred model id for this agent. When omitted, inherits the outer agent's model.</summary>
     [JsonPropertyName("model")]
@@ -2899,7 +2899,7 @@ public sealed class TasksGetProgressResult
 {
     /// <summary>Progress information for the task, discriminated by type. Returns null when no task with this ID is currently tracked.</summary>
     [JsonPropertyName("progress")]
-    public object? Progress { get; set; }
+    public JsonElement? Progress { get; set; }
 }
 
 /// <summary>Identifier of the background task to fetch progress for.</summary>
@@ -3320,7 +3320,7 @@ internal sealed class McpExecuteSamplingParams
 {
     /// <summary>The original MCP JSON-RPC request ID (string or number). Used by the runtime to correlate the inference with the originating MCP request for telemetry; this is distinct from `requestId` (which is the schema-level cancellation handle).</summary>
     [JsonPropertyName("mcpRequestId")]
-    public object McpRequestId { get; set; } = null!;
+    public JsonElement McpRequestId { get; set; }
 
     /// <summary>Raw MCP CreateMessageRequest params, as received in the `sampling.requested` event. Treated as opaque at the schema layer; the runtime converts the embedded MCP messages into the OpenAI chat-completion shape internally.</summary>
     [JsonPropertyName("request")]
@@ -3514,7 +3514,7 @@ public sealed class SessionInstalledPlugin
 
     /// <summary>Source descriptor for direct repo installs (when marketplace is empty).</summary>
     [JsonPropertyName("source")]
-    public object? Source { get; set; }
+    public JsonElement? Source { get; set; }
 
     /// <summary>Installed version, if known.</summary>
     [JsonPropertyName("version")]
@@ -3527,7 +3527,7 @@ internal sealed class SessionUpdateOptionsParams
 {
     /// <summary>Additional content-exclusion policies to merge into the session's policy set. Opaque shape; see `ContentExclusionApiResponse` in the runtime.</summary>
     [JsonPropertyName("additionalContentExclusionPolicies")]
-    public IList<object>? AdditionalContentExclusionPolicies { get; set; }
+    public IList<JsonElement>? AdditionalContentExclusionPolicies { get; set; }
 
     /// <summary>Runtime context discriminator (e.g., `cli`, `actions`).</summary>
     [JsonPropertyName("agentContext")]
@@ -3631,7 +3631,7 @@ internal sealed class SessionUpdateOptionsParams
 
     /// <summary>Custom model-provider configuration (BYOK). Opaque shape; see `ProviderConfig` in the runtime.</summary>
     [JsonPropertyName("provider")]
-    public object? Provider { get; set; }
+    public JsonElement? Provider { get; set; }
 
     /// <summary>Reasoning effort for the selected model (model-defined enum).</summary>
     [JsonPropertyName("reasoningEffort")]
@@ -3643,7 +3643,7 @@ internal sealed class SessionUpdateOptionsParams
 
     /// <summary>Sandbox configuration shape; opaque to SDK consumers. See `SandboxConfig` in the runtime.</summary>
     [JsonPropertyName("sandboxConfig")]
-    public object? SandboxConfig { get; set; }
+    public JsonElement? SandboxConfig { get; set; }
 
     /// <summary>Target session identifier.</summary>
     [JsonPropertyName("sessionId")]
@@ -4393,7 +4393,7 @@ public sealed class PermissionsConfigureAdditionalContentExclusionPolicy
 {
     /// <summary>Gets or sets the <c>last_updated_at</c> value.</summary>
     [JsonPropertyName("last_updated_at")]
-    public object LastUpdatedAt { get; set; } = null!;
+    public JsonElement LastUpdatedAt { get; set; }
 
     /// <summary>Gets or sets the <c>rules</c> value.</summary>
     [JsonPropertyName("rules")]
@@ -5904,7 +5904,7 @@ internal sealed class EventLogReadRequest
 
     /// <summary>Either '*' to receive all event types, or a non-empty list of event types to receive.</summary>
     [JsonPropertyName("types")]
-    public object? Types { get; set; }
+    public JsonElement? Types { get; set; }
 
     /// <summary>Milliseconds to wait for new events when the cursor is at the tail of history. 0 (default) returns immediately even if no events are available. Capped at 30000ms. Ephemeral events that arrive during the wait are delivered in this batch but are NOT replayable on a subsequent read (use a non-zero waitMs in your next call to capture future ephemerals as they happen).</summary>
     [JsonConverter(typeof(MillisecondsTimeSpanConverter))]
@@ -10206,7 +10206,7 @@ public sealed class SessionRpc
     /// <param name="wait">If true, await completion of the agentic loop for this message before returning. Defaults to false (fire-and-forget). When true, the result still contains the same `messageId`; the caller can rely on the agent having processed the message before the call resolves.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Result of sending a user message.</returns>
-    public async Task<SendResult> SendAsync(string prompt, string? displayPrompt = null, IList<SendAttachment>? attachments = null, SendMode? mode = null, bool? prepend = null, bool? billable = null, string? requiredTool = null, object? source = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
+    public async Task<SendResult> SendAsync(string prompt, string? displayPrompt = null, IList<SendAttachment>? attachments = null, SendMode? mode = null, bool? prepend = null, bool? billable = null, string? requiredTool = null, JsonElement? source = null, SendAgentMode? agentMode = null, IDictionary<string, string>? requestHeaders = null, string? traceparent = null, string? tracestate = null, bool? wait = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(prompt);
         _session.ThrowIfDisposed();
@@ -10973,11 +10973,10 @@ public sealed class McpApi
     /// <param name="request">Raw MCP CreateMessageRequest params, as received in the `sampling.requested` event. Treated as opaque at the schema layer; the runtime converts the embedded MCP messages into the OpenAI chat-completion shape internally.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Outcome of an MCP sampling execution: success result, failure error, or cancellation.</returns>
-    public async Task<McpSamplingExecutionResult> ExecuteSamplingAsync(string requestId, string serverName, object mcpRequestId, McpExecuteSamplingRequest request, CancellationToken cancellationToken = default)
+    public async Task<McpSamplingExecutionResult> ExecuteSamplingAsync(string requestId, string serverName, JsonElement mcpRequestId, McpExecuteSamplingRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(requestId);
         ArgumentNullException.ThrowIfNull(serverName);
-        ArgumentNullException.ThrowIfNull(mcpRequestId);
         ArgumentNullException.ThrowIfNull(request);
         _session.ThrowIfDisposed();
 
@@ -11129,7 +11128,7 @@ public sealed class OptionsApi
     /// <param name="manageScheduleEnabled">Whether to expose the `manage_schedule` tool to the agent. The runtime always owns the per-session schedule registry; this flag only controls tool exposure (typically gated to staff users).</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Indicates whether the session options patch was applied successfully.</returns>
-    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, string? reasoningEffort = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, object? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, object? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<object>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, CancellationToken cancellationToken = default)
+    public async Task<SessionUpdateOptionsResult> UpdateAsync(string? model = null, string? reasoningEffort = null, string? clientName = null, string? lspClientName = null, string? integrationId = null, IDictionary<string, bool>? featureFlags = null, bool? isExperimentalMode = null, JsonElement? provider = null, string? workingDirectory = null, IList<string>? availableTools = null, IList<string>? excludedTools = null, bool? enableScriptSafety = null, string? shellInitProfile = null, IList<string>? shellProcessFlags = null, JsonElement? sandboxConfig = null, bool? logInteractiveShells = null, OptionsUpdateEnvValueMode? envValueMode = null, IList<string>? skillDirectories = null, IList<string>? disabledSkills = null, bool? enableOnDemandInstructionDiscovery = null, IList<SessionInstalledPlugin>? installedPlugins = null, bool? customAgentsLocalOnly = null, bool? skipCustomInstructions = null, IList<string>? disabledInstructionSources = null, bool? coauthorEnabled = null, string? trajectoryFile = null, bool? enableStreaming = null, string? copilotUrl = null, bool? askUserDisabled = null, bool? continueOnAutoMode = null, bool? runningInInteractiveMode = null, bool? enableReasoningSummaries = null, string? agentContext = null, string? eventsLogDirectory = null, IList<JsonElement>? additionalContentExclusionPolicies = null, bool? manageScheduleEnabled = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 
@@ -11984,7 +11983,7 @@ public sealed class EventLogApi
     /// <param name="agentScope">Agent-scope filter: 'primary' returns only main-agent events plus events whose type starts with 'subagent.' (matching the typed-subscription default behavior); 'all' returns events from all agents (matching wildcard-subscription behavior). Default is 'all' to preserve wildcard semantics for catch-up callers.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> to monitor for cancellation requests. The default is <see cref="CancellationToken.None"/>.</param>
     /// <returns>Batch of session events returned by a read, with cursor and continuation metadata.</returns>
-    public async Task<EventsReadResult> ReadAsync(string? cursor = null, int? max = null, TimeSpan? waitMs = null, object? types = null, EventsAgentScope? agentScope = null, CancellationToken cancellationToken = default)
+    public async Task<EventsReadResult> ReadAsync(string? cursor = null, int? max = null, TimeSpan? waitMs = null, JsonElement? types = null, EventsAgentScope? agentScope = null, CancellationToken cancellationToken = default)
     {
         _session.ThrowIfDisposed();
 

@@ -3,6 +3,7 @@ package copilot
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 func TestPermissionRequestResultKind_Constants(t *testing.T) {
@@ -92,6 +93,54 @@ func TestPermissionRequestResult_JSONSerialize(t *testing.T) {
 	expected := `{"kind":"approve-once"}`
 	if string(data) != expected {
 		t.Errorf("expected %s, got %s", expected, string(data))
+	}
+}
+
+func TestPingResponse_UnmarshalJSON_NumericTimestamp(t *testing.T) {
+	const raw = `{"message":"pong","timestamp":1779352370134,"protocolVersion":3}`
+	var resp PingResponse
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got, want := resp.Timestamp.UnixMilli(), int64(1779352370134); got != want {
+		t.Fatalf("Timestamp got %d, want %d", got, want)
+	}
+	if resp.Message != "pong" {
+		t.Fatalf("Message got %q, want pong", resp.Message)
+	}
+	if resp.ProtocolVersion == nil || *resp.ProtocolVersion != 3 {
+		t.Fatalf("ProtocolVersion got %v, want 3", resp.ProtocolVersion)
+	}
+}
+
+func TestPingResponse_UnmarshalJSON_ISO8601Timestamp(t *testing.T) {
+	const raw = `{"message":"pong","timestamp":"2026-05-21T08:29:54.042Z","protocolVersion":3}`
+	var resp PingResponse
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	want := time.Date(2026, 5, 21, 8, 29, 54, 42_000_000, time.UTC)
+	if !resp.Timestamp.Equal(want) {
+		t.Fatalf("Timestamp got %s, want %s", resp.Timestamp, want)
+	}
+}
+
+func TestPingResponse_UnmarshalJSON_StringifiedEpoch(t *testing.T) {
+	const raw = `{"message":"pong","timestamp":"1779352370134","protocolVersion":3}`
+	var resp PingResponse
+	if err := json.Unmarshal([]byte(raw), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got, want := resp.Timestamp.UnixMilli(), int64(1779352370134); got != want {
+		t.Fatalf("Timestamp got %d, want %d", got, want)
+	}
+}
+
+func TestPingResponse_UnmarshalJSON_RejectsGarbage(t *testing.T) {
+	const raw = `{"message":"pong","timestamp":"not-a-date","protocolVersion":3}`
+	var resp PingResponse
+	if err := json.Unmarshal([]byte(raw), &resp); err == nil {
+		t.Fatalf("expected error for garbage timestamp, got %+v", resp)
 	}
 }
 

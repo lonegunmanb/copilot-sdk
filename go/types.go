@@ -1,8 +1,11 @@
 package copilot
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/github/copilot-sdk/go/rpc"
@@ -1315,11 +1318,58 @@ type pingRequest struct {
 	Message string `json:"message,omitempty"`
 }
 
-// PingResponse is the response from a ping request
+// PingResponse is the response from a ping request.
 type PingResponse struct {
 	Message         string    `json:"message"`
 	Timestamp       time.Time `json:"timestamp"`
 	ProtocolVersion *int      `json:"protocolVersion,omitempty"`
+}
+
+// UnmarshalJSON tolerates both `"timestamp": 1779352370134` (JSON
+// number, epoch milliseconds) and `"timestamp": "2026-05-21T08:29:54.042Z"`
+// (JSON string, ISO 8601 / RFC 3339). String values that parse as a
+// stringified integer (e.g. `"1779352370134"`) are also accepted as epoch
+// milliseconds.
+func (p *PingResponse) UnmarshalJSON(b []byte) error {
+	type alias struct {
+		Message         string          `json:"message"`
+		Timestamp       json.RawMessage `json:"timestamp"`
+		ProtocolVersion *int            `json:"protocolVersion,omitempty"`
+	}
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	p.Message = a.Message
+	p.ProtocolVersion = a.ProtocolVersion
+
+	raw := bytes.TrimSpace(a.Timestamp)
+	switch {
+	case len(raw) == 0, bytes.Equal(raw, []byte("null")):
+		p.Timestamp = time.Time{}
+		return nil
+	case raw[0] == '"':
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return fmt.Errorf("PingResponse.timestamp: decode string: %w", err)
+		}
+		if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+			p.Timestamp = time.UnixMilli(n)
+			return nil
+		}
+		if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+			p.Timestamp = t
+			return nil
+		}
+		return fmt.Errorf("PingResponse.timestamp: unrecognised string %q", s)
+	default:
+		var n int64
+		if err := json.Unmarshal(raw, &n); err != nil {
+			return fmt.Errorf("PingResponse.timestamp: decode number: %w", err)
+		}
+		p.Timestamp = time.UnixMilli(n)
+		return nil
+	}
 }
 
 // getStatusRequest is the request for status.get

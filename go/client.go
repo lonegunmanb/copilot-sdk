@@ -1966,8 +1966,17 @@ type permissionResponseV2 struct {
 
 // handleToolCallRequestV2 handles a v2-style tool.call RPC request from the server.
 func (c *Client) handleToolCallRequestV2(req toolCallRequestV2) (*toolCallResponseV2, *jsonrpc2.Error) {
-	if req.SessionID == "" || req.ToolCallID == "" || req.ToolName == "" {
+	if req.SessionID == "" || req.ToolCallID == "" {
 		return nil, &jsonrpc2.Error{Code: -32602, Message: "invalid tool call payload"}
+	}
+
+	if req.ToolName == "" {
+		return &toolCallResponseV2{Result: ToolResult{
+			TextResultForLLM: "Tool call failed: tool name is missing or incorrect. Retry using one of the registered tool names.",
+			ResultType:       "failure",
+			Error:            "tool name is missing or incorrect",
+			ToolTelemetry:    map[string]any{},
+		}}, nil
 	}
 
 	c.sessionsMux.Lock()
@@ -1999,10 +2008,11 @@ func (c *Client) handleToolCallRequestV2(req toolCallRequestV2) (*toolCallRespon
 
 	result, err := handler(invocation)
 	if err != nil {
+		errMsg := err.Error()
 		return &toolCallResponseV2{Result: ToolResult{
-			TextResultForLLM: "Invoking this tool produced an error. Detailed information is not available.",
+			TextResultForLLM: fmt.Sprintf("Tool call failed: %s", errMsg),
 			ResultType:       "failure",
-			Error:            err.Error(),
+			Error:            errMsg,
 			ToolTelemetry:    map[string]any{},
 		}}, nil
 	}

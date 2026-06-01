@@ -3,6 +3,7 @@ package copilot
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -816,6 +817,86 @@ func TestClient_StartStopRace(t *testing.T) {
 	close(errChan)
 	if err := <-errChan; err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestClient_HandleToolCallRequestV2_EmptyToolName(t *testing.T) {
+	client := NewClient(nil)
+	client.sessions["s1"] = &Session{toolHandlers: map[string]ToolHandler{}}
+
+	resp, rpcErr := client.handleToolCallRequestV2(toolCallRequestV2{
+		SessionID:  "s1",
+		ToolCallID: "tc1",
+		ToolName:   "",
+	})
+
+	if rpcErr != nil {
+		t.Fatalf("expected no rpc error, got: %v", rpcErr)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+	if resp.Result.ResultType != "failure" {
+		t.Fatalf("expected failure result type, got %q", resp.Result.ResultType)
+	}
+	if resp.Result.Error != "tool name is missing or incorrect" {
+		t.Fatalf("unexpected error message: %q", resp.Result.Error)
+	}
+	if resp.Result.ToolTelemetry == nil {
+		t.Fatal("expected tool telemetry map to be initialized")
+	}
+}
+
+func TestClient_HandleToolCallRequestV2_MissingToolCallID(t *testing.T) {
+	client := NewClient(nil)
+	client.sessions["s1"] = &Session{toolHandlers: map[string]ToolHandler{}}
+
+	resp, rpcErr := client.handleToolCallRequestV2(toolCallRequestV2{
+		SessionID:  "s1",
+		ToolCallID: "",
+		ToolName:   "any_tool",
+	})
+
+	if resp != nil {
+		t.Fatal("expected nil response when payload is invalid")
+	}
+	if rpcErr == nil {
+		t.Fatal("expected rpc error for invalid payload")
+	}
+	if rpcErr.Message != "invalid tool call payload" {
+		t.Fatalf("unexpected error message: %q", rpcErr.Message)
+	}
+}
+
+func TestClient_HandleToolCallRequestV2_HandlerErrorIncludesMessageForLLM(t *testing.T) {
+	const handlerErr = "submit_research_card: title, summary, and content are required"
+	client := NewClient(nil)
+	session := &Session{toolHandlers: map[string]ToolHandler{}}
+	session.toolHandlers["submit_research_card"] = func(ToolInvocation) (ToolResult, error) {
+		return ToolResult{}, errors.New(handlerErr)
+	}
+	client.sessions["s1"] = session
+
+	resp, rpcErr := client.handleToolCallRequestV2(toolCallRequestV2{
+		SessionID:  "s1",
+		ToolCallID: "tc1",
+		ToolName:   "submit_research_card",
+	})
+
+	if rpcErr != nil {
+		t.Fatalf("expected no rpc error, got: %v", rpcErr)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+	if resp.Result.ResultType != "failure" {
+		t.Fatalf("expected failure result type, got %q", resp.Result.ResultType)
+	}
+	if resp.Result.Error != handlerErr {
+		t.Fatalf("unexpected error field: %q", resp.Result.Error)
+	}
+	if !strings.Contains(resp.Result.TextResultForLLM, handlerErr) {
+		t.Fatalf("expected TextResultForLLM to include handler error %q, got %q", handlerErr, resp.Result.TextResultForLLM)
 	}
 }
 

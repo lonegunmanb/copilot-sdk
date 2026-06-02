@@ -1971,12 +1971,7 @@ func (c *Client) handleToolCallRequestV2(req toolCallRequestV2) (*toolCallRespon
 	}
 
 	if req.ToolName == "" {
-		return &toolCallResponseV2{Result: ToolResult{
-			TextResultForLLM: "Tool call failed: tool name is missing or incorrect. Retry using one of the registered tool names.",
-			ResultType:       "failure",
-			Error:            "tool name is missing or incorrect",
-			ToolTelemetry:    map[string]any{},
-		}}, nil
+		return &toolCallResponseV2{Result: unsupportedToolResult(req.ToolName)}, nil
 	}
 
 	c.sessionsMux.Lock()
@@ -1988,12 +1983,7 @@ func (c *Client) handleToolCallRequestV2(req toolCallRequestV2) (*toolCallRespon
 
 	handler, ok := session.getToolHandler(req.ToolName)
 	if !ok {
-		return &toolCallResponseV2{Result: ToolResult{
-			TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", req.ToolName),
-			ResultType:       "failure",
-			Error:            fmt.Sprintf("tool '%s' not supported", req.ToolName),
-			ToolTelemetry:    map[string]any{},
-		}}, nil
+		return &toolCallResponseV2{Result: unsupportedToolResult(req.ToolName)}, nil
 	}
 
 	ctx := contextWithTraceParent(context.Background(), req.Traceparent, req.Tracestate)

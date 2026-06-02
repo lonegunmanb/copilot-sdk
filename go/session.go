@@ -972,6 +972,7 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 	case *ExternalToolRequestedData:
 		handler, ok := s.getToolHandler(d.ToolName)
 		if !ok {
+			s.handleUnsupportedToolAndRespond(d.RequestID, d.ToolName, d.Traceparent, d.Tracestate)
 			return
 		}
 		var tp, ts string
@@ -1039,6 +1040,46 @@ func (s *Session) handleBroadcastEvent(event SessionEvent) {
 			})
 		}
 	}
+}
+
+func unsupportedToolResult(toolName string) ToolResult {
+	if toolName == "" {
+		return ToolResult{
+			TextResultForLLM: "Tool call failed: tool name is missing or incorrect. Retry using one of the registered tool names.",
+			ResultType:       "failure",
+			Error:            "tool name is missing or incorrect",
+			ToolTelemetry:    map[string]any{},
+		}
+	}
+
+	return ToolResult{
+		TextResultForLLM: fmt.Sprintf("Tool '%s' is not supported by this client instance.", toolName),
+		ResultType:       "failure",
+		Error:            fmt.Sprintf("tool '%s' not supported", toolName),
+		ToolTelemetry:    map[string]any{},
+	}
+}
+
+func (s *Session) handleUnsupportedToolAndRespond(requestID, toolName string, traceparent, tracestate *string) {
+	var tp, ts string
+	if traceparent != nil {
+		tp = *traceparent
+	}
+	if tracestate != nil {
+		ts = *tracestate
+	}
+	ctx := contextWithTraceParent(context.Background(), tp, ts)
+	result := unsupportedToolResult(toolName)
+	rpcResult := &rpc.ExternalToolTextResultForLlm{
+		TextResultForLlm: result.TextResultForLLM,
+		ToolTelemetry:    result.ToolTelemetry,
+		ResultType:       &result.ResultType,
+		Error:            &result.Error,
+	}
+	s.RPC.Tools.HandlePendingToolCall(ctx, &rpc.HandlePendingToolCallRequest{
+		RequestID: requestID,
+		Result:    rpcResult,
+	})
 }
 
 // executeToolAndRespond executes a tool handler and sends the result back via RPC.

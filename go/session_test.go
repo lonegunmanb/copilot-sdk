@@ -1,14 +1,17 @@
 package copilot
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/github/copilot-sdk/go/internal/jsonrpc2"
 	"github.com/github/copilot-sdk/go/rpc"
 )
 
@@ -28,6 +31,123 @@ func newTestEvent() SessionEvent {
 	return SessionEvent{Data: &SessionIdleData{}}
 }
 
+func readTestRPCFrame(r io.Reader) ([]byte, error) {
+	reader := bufio.NewReader(r)
+	var contentLength int
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break
+		}
+		if _, err := fmt.Sscanf(line, "Content-Length: %d", &contentLength); err != nil {
+			return nil, err
+		}
+	}
+	data := make([]byte, contentLength)
+	_, err := io.ReadFull(reader, data)
+	return data, err
+}
+
+func writeTestRPCFrame(w io.Writer, message any) error {
+	data, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "Content-Length: %d\r\n\r\n", len(data)); err != nil {
+		return err
+	}
+	_, err = w.Write(data)
+	return err
+}
+
+type capturedToolCallRequest struct {
+	Method string
+	Params rpc.HandlePendingToolCallRequest
+}
+
+func captureHandlePendingToolCall(t *testing.T, trigger func(*Session)) capturedToolCallRequest {
+	t.Helper()
+
+	clientToServerR, clientToServerW := io.Pipe()
+	serverToClientR, serverToClientW := io.Pipe()
+	t.Cleanup(func() {
+		_ = clientToServerR.Close()
+		_ = clientToServerW.Close()
+		_ = serverToClientR.Close()
+		_ = serverToClientW.Close()
+	})
+
+	client := jsonrpc2.NewClient(clientToServerW, serverToClientR)
+	client.Start()
+	t.Cleanup(client.Stop)
+
+	captured := make(chan capturedToolCallRequest, 1)
+	errs := make(chan error, 1)
+	go func() {
+		data, err := readTestRPCFrame(clientToServerR)
+		if err != nil {
+			errs <- err
+			return
+		}
+
+		var request struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+			Params json.RawMessage `json:"params"`
+		}
+		if err := json.Unmarshal(data, &request); err != nil {
+			errs <- err
+			return
+		}
+
+		var params rpc.HandlePendingToolCallRequest
+		if err := json.Unmarshal(request.Params, &params); err != nil {
+			errs <- err
+			return
+		}
+
+		captured <- capturedToolCallRequest{Method: request.Method, Params: params}
+		if err := writeTestRPCFrame(serverToClientW, map[string]any{
+			"jsonrpc": "2.0",
+			"id":      request.ID,
+			"result":  map[string]any{"success": true},
+		}); err != nil {
+			errs <- err
+		}
+	}()
+
+	session := newSession("s1", client, "")
+	t.Cleanup(func() { close(session.eventCh) })
+
+	done := make(chan struct{})
+	go func() {
+		trigger(session)
+		close(done)
+	}()
+
+	select {
+	case request := <-captured:
+		select {
+		case <-done:
+		case err := <-errs:
+			t.Fatalf("unexpected RPC error: %v", err)
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for v3 tool response to complete")
+		}
+		return request
+	case err := <-errs:
+		t.Fatalf("unexpected RPC error: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for v3 tool response RPC")
+	}
+
+	return capturedToolCallRequest{}
+}
+
 func TestRPCPermissionDecisionFromKindPreservesUnknownKind(t *testing.T) {
 	kind := rpc.PermissionDecisionKind("future-decision")
 	decision := rpcPermissionDecisionFromKind(kind)
@@ -43,6 +163,62 @@ func TestRPCPermissionDecisionFromKindPreservesUnknownKind(t *testing.T) {
 	}
 	if serialized["kind"] != string(kind) {
 		t.Fatalf("expected kind %q to round-trip, got %v in %s", kind, serialized["kind"], data)
+	}
+}
+
+func TestSession_HandleBroadcastEventV3_EmptyToolName(t *testing.T) {
+	request := captureHandlePendingToolCall(t, func(session *Session) {
+		session.handleBroadcastEvent(SessionEvent{Data: &ExternalToolRequestedData{
+			RequestID:  "req1",
+			SessionID:  "s1",
+			ToolCallID: "tc1",
+			ToolName:   "",
+		}})
+	})
+
+	if request.Method != "session.tools.handlePendingToolCall" {
+		t.Fatalf("expected session.tools.handlePendingToolCall, got %q", request.Method)
+	}
+	if request.Params.RequestID != "req1" {
+		t.Fatalf("expected request ID req1, got %q", request.Params.RequestID)
+	}
+	result, ok := request.Params.Result.(*rpc.ExternalToolTextResultForLlm)
+	if !ok {
+		t.Fatalf("expected text result, got %T", request.Params.Result)
+	}
+	if result.ResultType == nil || *result.ResultType != "failure" {
+		t.Fatalf("expected failure result type, got %v", result.ResultType)
+	}
+	if result.Error == nil || *result.Error != "tool name is missing or incorrect" {
+		t.Fatalf("unexpected error message: %v", result.Error)
+	}
+	if !strings.Contains(result.TextResultForLlm, "tool name is missing or incorrect") {
+		t.Fatalf("expected LLM result to describe the missing tool name, got %q", result.TextResultForLlm)
+	}
+}
+
+func TestSession_HandleBroadcastEventV3_UnsupportedToolName(t *testing.T) {
+	request := captureHandlePendingToolCall(t, func(session *Session) {
+		session.handleBroadcastEvent(SessionEvent{Data: &ExternalToolRequestedData{
+			RequestID:  "req1",
+			SessionID:  "s1",
+			ToolCallID: "tc1",
+			ToolName:   "missing_tool",
+		}})
+	})
+
+	result, ok := request.Params.Result.(*rpc.ExternalToolTextResultForLlm)
+	if !ok {
+		t.Fatalf("expected text result, got %T", request.Params.Result)
+	}
+	if result.ResultType == nil || *result.ResultType != "failure" {
+		t.Fatalf("expected failure result type, got %v", result.ResultType)
+	}
+	if result.Error == nil || *result.Error != "tool 'missing_tool' not supported" {
+		t.Fatalf("unexpected error message: %v", result.Error)
+	}
+	if !strings.Contains(result.TextResultForLlm, "missing_tool") {
+		t.Fatalf("expected LLM result to mention missing_tool, got %q", result.TextResultForLlm)
 	}
 }
 
